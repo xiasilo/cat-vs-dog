@@ -19,6 +19,10 @@ public:
 	void spriteFall();
 	void addListener(); // 添加监听器
 
+	void changeWind();
+
+	float windstrength;
+
 	bool onConcactBegin(PhysicsContact& contact);
 	bool onTouchBegan(Touch *touch, Event *event);
 	void onTouchEnded(Touch *touch, Event *event);
@@ -51,9 +55,9 @@ private:
 	int percentageCat, percentageDog;
 	float power;
 	bool isDogAddingPower, isCatAddingPower;
-	//isBoneExist == true时，骨头正在被投掷
-	bool isBoneExist;
 	bool isFishExist;
+	bool isBoneExist;
+	bool isWindHaveChanged;
 
 	// cat
 	SpriteFrame* catNormal;
@@ -75,6 +79,13 @@ private:
 	SpriteFrame* tomatoHurt2;
 	Vector<SpriteFrame*> tomatoDie;
 	Vector<SpriteFrame*> tomatoHurted;
+
+	// wind
+	SpriteFrame* wind_left_strong;
+	SpriteFrame* wind_left_weak;
+	SpriteFrame* wind_right_strong;
+	SpriteFrame* wind_right_weak;
+	cocos2d::Label* windLevel;
 
 	string lastAttack;
 };

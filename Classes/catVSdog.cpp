@@ -56,7 +56,10 @@ bool catVSdog::init() {
 	//add wind
 	wind = Sprite::create("/wind/wind_left_weak.png");
 	wind->setPosition(visibleSize.width / 2, visibleSize.height / 5 * 4);
+	windLevel = Label::createWithTTF("0", "fonts/Marker Felt.ttf", 30);
+	windLevel->setPosition(Vec2(wind->getPositionX() + 5, wind->getPositionY() - 55));
 	this->addChild(wind, 1);
+	this->addChild(windLevel, 1);
 
 	//power set to 0
 	power = 0;
@@ -65,6 +68,8 @@ bool catVSdog::init() {
 	isFishExist = false;
 	isCatAddingPower = false;
 	isDogAddingPower = false;
+	changeWind();
+	isWindHaveChanged = true;
 	lastAttack = "cat";
 
 	//血条
@@ -102,6 +107,7 @@ void catVSdog::preloadMusic() {
   sae->preloadEffect("dogBark.wav");
   sae->preloadEffect("tomatoHurt.mp3");
   sae->preloadBackgroundMusic("bgm.mp3");
+  sae->preloadEffect("gameover.mp3");
 
   sae->playBackgroundMusic("bgm.mp3", true);
 }
@@ -132,8 +138,18 @@ void catVSdog::setFrame() {
 	texture = Director::getInstance()->getTextureCache()->addImage("/tomato/tomato_hurt2.png");
 	tomatoHurt2 = SpriteFrame::createWithTexture(texture, CC_RECT_PIXELS_TO_POINTS(Rect(0, 0, 55, 55)));
 
+	// wind
+	texture = Director::getInstance()->getTextureCache()->addImage("/wind/wind_left_strong.png");
+	wind_left_strong = SpriteFrame::createWithTexture(texture, CC_RECT_PIXELS_TO_POINTS(Rect(0, 0, 80, 80)));
+	texture = Director::getInstance()->getTextureCache()->addImage("/wind/wind_left_weak.png");
+	wind_left_weak = SpriteFrame::createWithTexture(texture, CC_RECT_PIXELS_TO_POINTS(Rect(0, 0, 80, 80)));
+	texture = Director::getInstance()->getTextureCache()->addImage("/wind/wind_right_strong.png");
+	wind_right_strong = SpriteFrame::createWithTexture(texture, CC_RECT_PIXELS_TO_POINTS(Rect(0, 0, 80, 80)));
+	texture = Director::getInstance()->getTextureCache()->addImage("/wind/wind_right_weak.png");
+	wind_right_weak = SpriteFrame::createWithTexture(texture, CC_RECT_PIXELS_TO_POINTS(Rect(0, 0, 80, 80)));
 }
 
+// 加载各种动画 
 void catVSdog::setAni() {
 	dogHurted.reserve(3);
 	for (int i = 0; i < 3; i++) {
@@ -196,6 +212,35 @@ void catVSdog::addListener() {
 	auto contactListener = EventListenerPhysicsContact::create();
 	contactListener->onContactBegin = CC_CALLBACK_1(catVSdog::onConcactBegin, this);
 	_eventDispatcher->addEventListenerWithSceneGraphPriority(contactListener, this);
+}
+
+void catVSdog::changeWind() {
+	int a = 10 + rand() % 1000;
+	windstrength = (float)a / 100;
+	a = 0 + rand() % 2;
+	if (a == 0)
+		windstrength = -windstrength;
+	if (0 < windstrength && windstrength < 5.0) {
+		wind->setSpriteFrame(wind_right_weak);
+		CCString* level = CCString::createWithFormat("%.1f", windstrength);
+		windLevel->setString(level->getCString());
+	}
+	else if (windstrength >= 5.0) {
+		wind->setSpriteFrame(wind_right_strong);
+		CCString* level = CCString::createWithFormat("%.1f", windstrength);
+		windLevel->setString(level->getCString());
+	}
+	else if (-5.0 < windstrength && windstrength <= 0) {
+		wind->setSpriteFrame(wind_left_weak);
+		CCString* level = CCString::createWithFormat("%.1f", windstrength);
+		windLevel->setString(level->getCString());
+	}
+	else {
+		wind->setSpriteFrame(wind_left_strong);
+		CCString* level = CCString::createWithFormat("%.1f", windstrength);
+		windLevel->setString(level->getCString());
+	}
+	isWindHaveChanged = true;
 }
 
 // 创建角色
@@ -266,7 +311,7 @@ void catVSdog::onTouchEnded(Touch *touch, Event *event) {
 		boneBody->setCategoryBitmask(0x00000007);
 		boneBody->setCollisionBitmask(0x00000001);
 		boneBody->setContactTestBitmask(0x00000001);
-		boneBody->setVelocity(Vec2(0-10 * power, 10 * power));
+		boneBody->setVelocity(Vec2(0-10 * power + 40 * windstrength, 10 * power));
 		bone->setPhysicsBody(boneBody);
 		bone->setPosition(3 * visibleSize.width / 4 - 100, 300);
 		this->addChild(bone, 1);
@@ -284,7 +329,7 @@ void catVSdog::onTouchEnded(Touch *touch, Event *event) {
 		fishBody->setTag(5);
 		fish->setPhysicsBody(fishBody);
 		fish->setPosition(visibleSize.width / 4 + 100, 300);
-		fishBody->setVelocity(Vec2(10 * power, 10 * power));
+		fishBody->setVelocity(Vec2(10 * power + 40 * windstrength, 10 * power));
 		this->addChild(fish, 1);
 		isFishExist = true;
 		power = 0;
@@ -293,7 +338,6 @@ void catVSdog::onTouchEnded(Touch *touch, Event *event) {
 	}
 }
 
-// 箱子碰到船或者碰到其他箱子之后改变掩码，可以与玩家发生碰撞
 // Todo
 bool catVSdog::onConcactBegin(PhysicsContact & contact) {
 	return true;
@@ -310,6 +354,7 @@ void catVSdog::update(float dt) {
 		auto catRec = cat->getBoundingBox();
 		//骨头砸到猫
 		if (catRec.containsPoint(bone->getPosition())) {
+			isBoneExist = false;
 			bone->removeFromParent();
 			auto catHurtedAnimation = Animation::createWithSpriteFrames(catHurted, 0.1f);
 			catHurtedAnimation->setRestoreOriginalFrame(true);
@@ -335,12 +380,13 @@ void catVSdog::update(float dt) {
 
 				GameOver("dog");
 			}
-
-			isBoneExist = false;
 		}
 		//骨头没有砸到猫，且速度为0时， 消失
-		else if (abs(bone->getPhysicsBody()->getVelocity().x - 0.0f) < 0.000001f) {
-			bone->removeFromParent();
+		else if (abs(bone->getPhysicsBody()->getVelocity().x - 0.0f) < 0.000001f 
+			|| bone->getPositionX() >= visibleSize.width || bone->getPositionX() < 0) {
+			if(bone != nullptr)
+				bone->removeFromParent();
+
 			isBoneExist = false;
 		}
 	}
@@ -349,7 +395,10 @@ void catVSdog::update(float dt) {
 		auto dogRec = dog->getBoundingBox();
 		//鱼砸到狗
 		if (dogRec.containsPoint(fish->getPosition())) {
-			fish->removeFromParent();
+			if(fish != nullptr)
+				fish->removeFromParent();
+
+			isFishExist = false;
 			auto dogHurtedAnimation = Animation::createWithSpriteFrames(dogHurted, 0.1f);
 			dogHurtedAnimation->setRestoreOriginalFrame(true);
 			auto dogHurtedAnimate = Animate::create(dogHurtedAnimation);
@@ -374,12 +423,18 @@ void catVSdog::update(float dt) {
 				GameOver("cat");
 			}
 
-			isFishExist = false;
+
+			isWindHaveChanged = false;
 		}
 		//鱼没有砸到狗，且速度为0时， 消失
-		else if (abs(fish->getPhysicsBody()->getVelocity().x - 0.0f) < 0.000001f ) {
-			fish->removeFromParent();
+		else if (abs(fish->getPhysicsBody()->getVelocity().x - 0.0f) < 0.000001f 
+			|| fish->getPositionX() >= visibleSize.width || fish->getPositionX() <= 0) {
+
 			isFishExist = false;
+			if(fish != nullptr)
+				fish->removeFromParent();
+
+			isWindHaveChanged = false;
 		}
 	}
 
@@ -404,7 +459,8 @@ void catVSdog::update(float dt) {
 
 					iter = tomatoes.erase(iter);
 				}
-				bone->removeFromParent();
+				if(bone != nullptr)
+					bone->removeFromParent();
 				isBoneExist = false;
 				break;
 			}
@@ -431,18 +487,27 @@ void catVSdog::update(float dt) {
 
 					iter = tomatoes.erase(iter);
 				}
-				fish->removeFromParent();
+				if(fish != nullptr)
+					fish->removeFromParent();
+
 				isFishExist = false;
+
+				isWindHaveChanged = false;
+
 				break;
 			}
 		}
 	}
+
+	//风向改变
+	if (lastAttack == "cat" && isWindHaveChanged == false)
+		changeWind();
 }
 
 void catVSdog::GameOver(string whoWins) {
 	unschedule(schedule_selector(catVSdog::update));
 	SimpleAudioEngine::getInstance()->stopBackgroundMusic("bgm.mp3");
-	//SimpleAudioEngine::getInstance()->playEffect("gameover.mp3", false);
+	SimpleAudioEngine::getInstance()->playEffect("gameover.mp3", false);
 
 	auto label1 = Label::create();
 	if (whoWins == "cat")
